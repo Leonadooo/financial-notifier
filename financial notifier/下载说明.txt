@@ -1,0 +1,185 @@
+# 金融资讯定时推送系统 - 下载说明
+
+## 📦 文件说明
+
+这个zip包包含了运行金融资讯定时推送系统所需的所有文件。
+
+## 🚀 快速开始
+
+### 第1步：解压文件
+将zip文件解压到你想要的目录，例如：
+- Windows: C:\financial-notifier
+- Mac/Linux: ~/financial-notifier
+
+### 第2步：安装依赖
+
+**Windows (CMD):**
+```cmd
+cd C:\financial-notifier
+pip install -r requirements.txt
+```
+
+**Windows (PowerShell):**
+```powershell
+cd C:\financial-notifier
+pip install -r requirements.txt
+```
+
+**Mac/Linux:**
+```bash
+cd ~/financial-notifier
+pip install -r requirements.txt
+```
+
+### 第3步：测试运行
+
+```bash
+python scripts/daily_notification.py
+```
+
+如果看到"✅ 所有推送渠道成功！"，说明系统运行正常！
+
+### 第4步：配置推送渠道
+
+编辑 `config/notification_config.json` 文件，修改为你的邮箱：
+
+```json
+{
+  "enabled_channels": ["email"],
+  "email": {
+    "enabled": true,
+    "recipients": ["你的邮箱@example.com"]
+  }
+}
+```
+
+### 第5步：推荐使用GitHub Actions（电脑关机也能收到）⭐
+
+按照 `docs/GITHUB_ACTIONS_TUTORIAL.md` 教程操作，10分钟搞定！
+
+## 📚 文档说明
+
+### 核心文档（按推荐顺序）：
+
+1. **docs/GITHUB_ACTIONS_TUTORIAL.md** - GitHub Actions 10分钟教程（强烈推荐！）
+   - 完全免费
+   - 不需要电脑开机
+   - 操作最简单
+
+2. **docs/QUICK_START.md** - 5分钟快速开始
+   - 快速测试系统
+   - 了解基本功能
+
+3. **docs/DEPLOYMENT_GUIDE.md** - 完整部署指南
+   - 本地部署详细步骤
+   - 故障排查
+
+4. **docs/REMOTE_DEPLOYMENT.md** - 远程部署方案
+   - GitHub Actions
+   - 云服务器部署
+
+## 📁 项目结构
+
+```
+financial-notifier/
+├── config/                          # 配置文件
+│   ├── agent_llm_config.json       # Agent配置
+│   └── notification_config.json    # 推送配置（需要修改）
+│
+├── docs/                            # 文档
+│   ├── GITHUB_ACTIONS_TUTORIAL.md  # GitHub教程
+│   ├── QUICK_START.md              # 快速开始
+│   ├── DEPLOYMENT_GUIDE.md         # 部署指南
+│   └── ...
+│
+├── scripts/                         # 脚本
+│   └── daily_notification.py       # 主推送脚本
+│
+├── src/                             # 源代码
+│   ├── agents/                     # Agent核心
+│   └── tools/                      # 工具函数
+│
+├── .github/                         # GitHub配置
+│   └── workflows/
+│       └── daily-notification.yml  # GitHub Actions配置
+│
+├── Dockerfile                       # Docker配置（可选）
+├── docker-compose.yml               # Docker Compose（可选）
+├── requirements.txt                 # Python依赖
+└── README.md                        # 项目说明
+```
+
+## 🎯 三种部署方式
+
+### 方式1：GitHub Actions（推荐）⭐⭐⭐⭐⭐
+- 完全免费
+- 不需要电脑开机
+- 10分钟搞定
+
+教程：docs/GITHUB_ACTIONS_TUTORIAL.md
+
+### 方式2：云服务器
+- 稳定性高
+- 30-60元/月
+
+教程：docs/REMOTE_DEPLOYMENT.md
+
+### 方式3：本地部署
+- 电脑需要一直开机
+- 快速测试用
+
+教程：docs/DEPLOYMENT_GUIDE.md
+
+## ❓ 常见问题
+
+### Q: 我应该选择哪种部署方式？
+
+**Windows电脑不一直开机** → GitHub Actions（推荐）
+**需要最高稳定性** → 云服务器
+**快速测试** → 本地部署
+
+### Q: pip install 失败怎么办？
+
+使用国内镜像源：
+
+```bash
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+### Q: 如何修改推送邮箱？
+
+编辑 config/notification_config.json：
+```json
+{
+  "email": {
+    "enabled": true,
+    "recipients": ["你的邮箱@example.com"]
+  }
+}
+```
+
+### Q: 邮件推送失败？
+
+1. 检查邮箱是否开启SMTP服务
+2. 使用"授权码"而不是"登录密码"
+3. 查看详细文档：docs/DEPLOYMENT_GUIDE.md
+
+## 📞 需要帮助？
+
+- 查看 docs/ 目录下的详细文档
+- 查看 README.md 了解完整功能
+- 运行 `python scripts/daily_notification.py` 测试系统
+
+## 🎉 开始使用
+
+推荐顺序：
+1. 解压文件
+2. 安装依赖
+3. 测试运行
+4. 配置邮箱
+5. 按照docs/GITHUB_ACTIONS_TUTORIAL.md部署
+
+祝你使用愉快！🚀📧📈
+
+---
+文档生成时间：$(date)
