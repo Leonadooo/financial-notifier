@@ -26,7 +26,7 @@ jobs:
 
       - name: 创建日志目录
         run: |
-          mkdir -p logs
+          mkdir -p /tmp/app/work/logs/bypass
 
       - name: 运行推送脚本
         env:
