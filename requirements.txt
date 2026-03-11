@@ -83,6 +83,7 @@ reportlab==4.4.10
 
 # 图像处理（coze-coding-dev-sdk 依赖）
 Pillow==10.3.0
+openpyxl==3.1.5
 
 # Excel处理（python-pptx 依赖）
 XlsxWriter==3.2.9
