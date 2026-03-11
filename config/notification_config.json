@@ -1,0 +1,26 @@
+{
+  "enabled_channels": ["console", "email"],
+  "wechat": {
+    "enabled": false,
+    "description": "企业微信机器人推送配置"
+  },
+  "feishu": {
+    "enabled": false,
+    "description": "飞书机器人推送配置"
+  },
+  "email": {
+    "enabled": true,
+    "recipients": ["461599354@qq.com", "18604321673@163.com"],
+    "smtp_server": "smtp.qq.com",
+    "smtp_port": 465,
+    "account": "461599354@qq.com",
+    "auth_code": "jgisuuyeggrqcajf",
+    "description": "邮件推送配置"
+  },
+  "content_types": [
+    "gold",
+    "oil",
+    "financial"
+  ],
+  "description": "enabled_channels 可选值: console, wechat, feishu, email"
+}

@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  financial-notifier:
+    build: .
+    container_name: financial-notifier
+    restart: unless-stopped
+    environment:
+      - COZE_WORKSPACE_PATH=/workspace/projects
+      - COZE_WORKLOAD_IDENTITY_API_KEY=${COZE_API_KEY}
+      - COZE_INTEGRATION_MODEL_BASE_URL=${COZE_BASE_URL}
+    volumes:
+      - ./logs:/workspace/projects/logs
+      - ./config:/workspace/projects/config
