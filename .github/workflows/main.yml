@@ -33,6 +33,8 @@ jobs:
         env:
           COZE_WORKSPACE_PATH: ${{ github.workspace }}
           COZE_WORKLOAD_IDENTITY_API_KEY: ${{ secrets.COZE_API_KEY }}
+          COZE_BASE_URL: ${{ secrets.COZE_BASE_URL }}  
+          COZE_INTEGRATION_BASE_URL: ${{ secrets.COZE_BASE_URL }}   
           COZE_INTEGRATION_MODEL_BASE_URL: ${{ secrets.COZE_BASE_URL }}
         run: |
           python scripts/daily_notification.py
