@@ -19,7 +19,7 @@ from coze_coding_utils.log.config import LOG_DIR, LOG_LEVEL
 
 # 导入工具 - 使用内部实现函数
 from src.tools.financial_news_tool import (
-    _search_financial_news_impl
+    _generate_financial_news_impl
 )
 from src.tools.notification_tool import (
     _send_email_notification_impl
@@ -82,7 +82,7 @@ def gather_financial_news(content_types):
     if "gold" in content_types:
         print(f"📊 正在获取黄金价格分析（今日新闻，最多{items_per_type}条）...")
         try:
-            gold_content = _search_financial_news_impl("黄金价格走势 影响因素", max_items=items_per_type)
+            gold_content = _generate_financial_news_impl("黄金价格走势 影响因素", max_items=items_per_type)
             all_content.append({
                 "title": "🥇 黄金价格走势分析",
                 "content": gold_content
@@ -94,7 +94,7 @@ def gather_financial_news(content_types):
     if "oil" in content_types:
         print(f"\n📊 正在获取原油价格分析（今日新闻，最多{items_per_type}条）...")
         try:
-            oil_content = _search_financial_news_impl("原油价格走势 国际石油市场 影响因素", max_items=items_per_type)
+            oil_content = _generate_financial_news_impl("原油价格走势 国际石油市场 影响因素", max_items=items_per_type)
             all_content.append({
                 "title": "🛢️ 原油价格走势分析",
                 "content": oil_content
@@ -106,7 +106,7 @@ def gather_financial_news(content_types):
     if "financial" in content_types:
         print(f"\n📊 正在获取国际金融形势（今日新闻，最多{items_per_type}条）...")
         try:
-            financial_content = _search_financial_news_impl("国际金融形势 全球经济", max_items=items_per_type)
+            financial_content = _generate_financial_news_impl("国际金融形势 全球经济", max_items=items_per_type)
             all_content.append({
                 "title": "🌍 国际金融形势",
                 "content": financial_content
