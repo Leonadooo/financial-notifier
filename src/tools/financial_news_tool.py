@@ -1,288 +1,262 @@
+#!/usr/bin/env python3
 """
-金融资讯搜索工具
-用于获取国际金融形势、黄金、石油等大宗商品的最新资讯和分析
+金融资讯定时推送脚本
+每天自动获取金融资讯并通过配置的渠道推送
 """
-from langchain.tools import tool, ToolRuntime
-from coze_coding_dev_sdk import SearchClient
+import sys
+import os
+import json
+from datetime import datetime
+import asyncio
+
+# 添加项目路径到Python路径
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from langchain_core.messages import HumanMessage, SystemMessage
 from coze_coding_utils.runtime_ctx.context import new_context
-from datetime import datetime, timedelta
+from coze_coding_utils.log.write_log import setup_logging
+from coze_coding_utils.log.config import LOG_DIR, LOG_LEVEL
+
+# 导入工具 - 使用内部实现函数
+from src.tools.financial_news_tool import (
+    _generate_financial_news_impl
+)
+from src.tools.notification_tool import (
+    _send_email_notification_impl
+)
+
+# 设置日志
+LOG_FILE = os.path.join(LOG_DIR, "daily_notification.log")
+setup_logging(
+    log_file=LOG_FILE,
+    max_bytes=100 * 1024 * 1024,
+    backup_count=5,
+    log_level=LOG_LEVEL,
+    use_json_format=True,
+    console_output=True
+)
 
 
-def _is_today(publish_time_str: str) -> bool:
-    """
-    判断新闻是否是今日发布的
+def get_notification_config():
+    """获取推送配置"""
+    config_path = os.path.join(
+        os.getenv("COZE_WORKSPACE_PATH", "/workspace/projects"),
+        "config",
+        "notification_config.json"
+    )
 
-    Args:
-        publish_time_str: 发布时间字符串
+    if os.path.exists(config_path):
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
 
-    Returns:
-        True如果是今日发布，否则False
-    """
-    if not publish_time_str:
-        return False
+    # 默认配置
+    return {
+        "enabled_channels": ["console"],  # 默认只输出到控制台
+        "wechat": {"enabled": False},
+        "feishu": {"enabled": False},
+        "email": {
+            "enabled": False,
+            "recipients": []
+        },
+        "content_types": ["gold", "oil", "financial"]  # 默认获取所有内容
+    }
 
-    try:
-        today = datetime.now().date()
-        current_time = datetime.now()
 
-        # 尝试解析各种常见的时间格式
-        time_formats = [
-            "%Y-%m-%d",
-            "%Y/%m/%d",
-            "%Y-%m-%dT%H:%M:%S",
-            "%Y-%m-%dT%H:%M:%S%z",
-            "%Y-%m-%d %H:%M:%S",
-        ]
+def gather_financial_news(content_types):
+    """收集金融资讯（控制时长在5分钟内）"""
+    print("\n" + "=" * 60)
+    print(f"开始收集金融资讯 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("⏱️  目标：控制在5分钟内读完（约1500字）")
+    print("=" * 60 + "\n")
 
-        for fmt in time_formats:
+    all_content = []
+
+    # 根据内容类型数量，动态调整每个主题的新闻条数
+    # 目标：3个主题各1条，总约600-800字（控制在5分钟内读完）
+    num_types = len(content_types)
+    if num_types == 1:
+        items_per_type = 2  # 单个主题时，2条新闻
+    else:
+        items_per_type = 1  # 多个主题时，各1条
+
+    if "gold" in content_types:
+        print(f"📊 正在获取黄金价格分析（今日新闻，最多{items_per_type}条）...")
+        try:
+            gold_content = _generate_financial_news_impl("黄金价格走势 影响因素", max_items=items_per_type)
+            all_content.append({
+                "title": "🥇 黄金价格走势分析",
+                "content": gold_content
+            })
+            print(f"✅ 黄金价格分析获取成功")
+        except Exception as e:
+            print(f"❌ 黄金价格分析获取失败: {e}")
+
+    if "oil" in content_types:
+        print(f"\n📊 正在获取原油价格分析（今日新闻，最多{items_per_type}条）...")
+        try:
+            oil_content = _generate_financial_news_impl("原油价格走势 国际石油市场 影响因素", max_items=items_per_type)
+            all_content.append({
+                "title": "🛢️ 原油价格走势分析",
+                "content": oil_content
+            })
+            print(f"✅ 原油价格分析获取成功")
+        except Exception as e:
+            print(f"❌ 原油价格分析获取失败: {e}")
+
+    if "financial" in content_types:
+        print(f"\n📊 正在获取国际金融形势（今日新闻，最多{items_per_type}条）...")
+        try:
+            financial_content = _generate_financial_news_impl("国际金融形势 全球经济", max_items=items_per_type)
+            all_content.append({
+                "title": "🌍 国际金融形势",
+                "content": financial_content
+            })
+            print(f"✅ 国际金融形势获取成功")
+        except Exception as e:
+            print(f"❌ 国际金融形势获取失败: {e}")
+
+    return all_content
+
+
+def format_notification(all_content):
+    # 修改标题格式
+    header = f"# 💰 每日金融资讯\n\n📅 日期：{datetime.now().strftime('%Y年%m月%d日')}\n"
+    
+    # 添加问候语
+    greeting = f"您好！以下是今日金融资讯：\n\n"
+    
+    body = []
+    for idx, item in enumerate(all_content, 1):
+        body.append(f"### {item['title']}\n")  # 改用三级标题
+        body.append(item['content'])
+        body.append("\n\n---\n\n")  # 添加分隔线
+
+    # 修改页脚
+    footer = f"\n\n*本邮件由金融资讯助手自动生成，时间：{datetime.now().strftime('%H:%M:%S')}*"
+
+    return header + greeting + "\n".join(body) + footer
+
+
+def send_notification(content, config):
+    """发送通知"""
+    enabled_channels = config.get("enabled_channels", ["console"])
+    success_count = 0
+    total_count = 0
+
+    # 控制台输出
+    if "console" in enabled_channels:
+        print("\n" + "=" * 80)
+        print("【控制台输出】")
+        print("=" * 80)
+        print(content)
+        print("=" * 80 + "\n")
+        success_count += 1
+        total_count += 1
+
+    # 企业微信推送（暂时禁用，需要修复工具函数）
+    # if "wechat" in enabled_channels and config.get("wechat", {}).get("enabled", False):
+    #     total_count += 1
+    #     try:
+    #         result = send_wechat_notification(content, message_type="markdown")
+    #         if "成功" in result:
+    #             print("✅ 企业微信推送成功")
+    #             success_count += 1
+    #         else:
+    #             print(f"❌ 企业微信推送失败: {result}")
+    #     except Exception as e:
+    #         print(f"❌ 企业微信推送异常: {e}")
+
+    # 飞书推送（暂时禁用，需要修复工具函数）
+    # if "feishu" in enabled_channels and config.get("feishu", {}).get("enabled", False):
+    #     total_count += 1
+    #     try:
+    #         result = send_feishu_notification(
+    #             content,
+    #             message_type="rich",
+    #             title=f"📈 金融资讯早报 - {datetime.now().strftime('%m/%d')}"
+    #         )
+    #         if "成功" in result:
+    #             print("✅ 飞书推送成功")
+    #             success_count += 1
+    #         else:
+    #             print(f"❌ 飞书推送失败: {result}")
+    #     except Exception as e:
+    #         print(f"❌ 飞书推送异常: {e}")
+
+    # 邮件推送
+    if "email" in enabled_channels and config.get("email", {}).get("enabled", False):
+        recipients = config.get("email", {}).get("recipients", [])
+        if recipients:
+            total_count += 1
             try:
-                # 只取前25个字符，避免时区信息影响
-                time_str = publish_time_str[:25]
-                pub_time = datetime.strptime(time_str, fmt)
+                email_config = config.get("email", {})
+                result = _send_email_notification_impl(
+                    subject=f"📈 金融资讯早报 - {datetime.now().strftime('%Y-%m-%d')}",
+                    content=content,
+                    to_addrs=recipients,
+                    config_override=email_config
+                )
+                if "成功" in result:
+                    print("✅ 邮件推送成功")
+                    success_count += 1
+                else:
+                    print(f"❌ 邮件推送失败: {result}")
+            except Exception as e:
+                print(f"❌ 邮件推送异常: {e}")
 
-                # 检查是否是今天
-                if pub_time.date() == today:
-                    return True
-
-                # 如果是24小时内的新闻，也算"今日"
-                if (current_time - pub_time).total_seconds() <= 24 * 3600:
-                    return True
-
-                return False
-            except ValueError:
-                continue
-
-        # 如果包含"今天"、"今日"、"小时前"、"分钟前"等关键词
-        keywords_today = ["今天", "今日", "Today", "hour ago", "hours ago", "minute ago", "minutes ago", "刚刚"]
-        if any(keyword in publish_time_str.lower() for keyword in keywords_today):
-            return True
-
-        return False
-    except Exception:
-        return False
+    return success_count, total_count
 
 
-def _search_financial_news_impl(query: str, max_items: int = 5) -> str:
-    """
-    搜索金融相关资讯（内部实现函数）
+def main():
+    """主函数"""
+    print("\n" + "🚀" * 40)
+    print("金融资讯定时推送服务启动")
+    print("🚀" * 40)
 
-    Args:
-        query: 搜索关键词
-        max_items: 最多返回的新闻条数（默认5条）
+    # 获取配置
+    config = get_notification_config()
+    content_types = config.get("content_types", ["gold", "oil", "financial"])
 
-    Returns:
-        搜索结果的摘要，包括标题、来源、链接等关键信息
-    """
-    ctx = new_context(method="search.financial_news")
+    print(f"\n📋 配置信息:")
+    print(f"   - 启用渠道: {', '.join(config.get('enabled_channels', []))}")
+    print(f"   - 内容类型: {', '.join(content_types)}")
 
+    # 收集资讯
+    all_content = gather_financial_news(content_types)
+
+    if not all_content:
+        print("\n⚠️  未能获取到任何资讯，请检查网络连接")
+        return
+
+    # 格式化内容
+    formatted_content = format_notification(all_content)
+
+    # 发送通知
+    print("\n📤 开始推送消息...")
+    success_count, total_count = send_notification(formatted_content, config)
+
+    # 总结
+    print("\n" + "📊" * 40)
+    print("推送任务完成")
+    print("📊" * 40)
+    print(f"成功: {success_count}/{total_count}")
+    print(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    if success_count < total_count:
+        print("\n⚠️  部分推送渠道失败，请检查配置和凭证")
+        sys.exit(1)
+    else:
+        print("\n✅ 所有推送渠道成功！")
+
+
+if __name__ == "__main__":
     try:
-        client = SearchClient(ctx=ctx)
-
-        # 使用search方法，添加时间过滤（1天内的新闻）
-        response = client.search(
-            query=query,
-            search_type="web",
-            count=15,  # 搜索更多条以便筛选
-            time_range="1d",  # 尝试只搜索最近1天的新闻
-            need_summary=True
-        )
-
-        if not response.web_items:
-            return f"暂未找到关于 '{query}' 的相关资讯"
-
-        # 筛选今日或24小时内的新闻
-        today_items = []
-        recent_items = []
-
-        for item in response.web_items:
-            if _is_today(item.publish_time):
-                today_items.append(item)
-            else:
-                recent_items.append(item)
-
-        # 优先使用今日新闻
-        if today_items:
-            final_items = today_items[:max_items]
-            time_note = "（今日新闻）"
-        elif recent_items:
-            final_items = recent_items[:max_items]
-            time_note = "（最新新闻，暂无今日更新）"
-        else:
-            final_items = response.web_items[:max_items]
-            time_note = ""
-
-        if not final_items:
-            return f"今日暂无关于 '{query}' 的相关资讯"
-
-        result_parts = []
-
-        # 添加AI摘要（如果有，并精简）
-        if response.summary and len(response.summary) > 50:
-            summary_lines = response.summary.split('\n')[:2]  # 只取前2行
-            result_parts.append(f"【AI摘要】\n{' '.join(summary_lines)}\n")
-
-        # 添加提示信息
-        if "今日新闻" in time_note:
-            result_parts.append(f"✅ 已为您筛选今日发布的最新新闻\n")
-        elif "暂无今日更新" in time_note:
-            result_parts.append(f"⚠️  今日暂无更新，为您展示最新新闻\n")
-
-        # 添加搜索结果
-        for idx, item in enumerate(final_items, 1):
-            result_parts.append(f"{idx}. {item.title}\n")
-            result_parts.append(f"   📅 {item.publish_time[:10] if item.publish_time else '时间未知'} | {item.site_name}\n")
-            result_parts.append("")
-
-        return "\n".join(result_parts).strip()
-
+        main()
+    except KeyboardInterrupt:
+        print("\n\n⚠️  用户中断执行")
+        sys.exit(0)
     except Exception as e:
-        return f"搜索金融资讯时出错：{str(e)}"
-
-
-@tool
-def search_financial_news(query: str, runtime: ToolRuntime = None) -> str:
-    """
-    搜索金融相关资讯
-
-    Args:
-        query: 搜索关键词，如"国际金融形势"、"黄金价格走势"、"原油市场"等
-
-    Returns:
-        搜索结果的摘要，包括标题、来源、链接等关键信息
-    """
-    return _search_financial_news_impl(query)
-
-
-@tool
-def get_gold_price_analysis(runtime: ToolRuntime = None) -> str:
-    """
-    获取黄金价格走势及影响因素分析
-
-    Returns:
-        黄金价格最新资讯、走势分析和影响因素
-    """
-    return _search_financial_news_impl("黄金价格走势 影响因素 2024")
-
-
-@tool
-def get_oil_price_analysis(runtime: ToolRuntime = None) -> str:
-    """
-    获取原油价格走势及影响因素分析
-
-    Returns:
-        原油价格最新资讯、走势分析和影响因素
-    """
-    return _search_financial_news_impl("原油价格走势 国际石油市场 影响因素 2024")
-
-
-@tool
-def get_international_financial_situation(runtime: ToolRuntime = None) -> str:
-    """
-    获取国际金融形势最新动态
-
-    Returns:
-        国际金融形势的综合资讯和分析
-    """
-    return _search_financial_news_impl("国际金融形势 全球经济 最新动态")
-
-
-# ===== 新增：ETF分析专用搜索函数 =====
-
-def _search_market_data_impl(query: str, category: str) -> str:
-    """
-    搜索市场数据（内部实现函数）
-
-    Args:
-        query: 搜索关键词
-        category: 数据类别（如"国际事件"、"大宗商品"等）
-
-    Returns:
-        搜索结果的摘要
-    """
-    ctx = new_context(method="search.market_data")
-
-    try:
-        client = SearchClient(ctx=ctx)
-
-        response = client.search(
-            query=query,
-            search_type="web",
-            count=5,
-            time_range="1d",
-            need_summary=True
-        )
-
-        if not response.web_items:
-            return f"暂无{category}数据"
-
-        result_parts = [f"## {category}\n\n"]
-
-        for idx, item in enumerate(response.web_items, 1):
-            result_parts.append(f"{idx}. {item.title}\n")
-            if item.publish_time:
-                result_parts.append(f"   时间：{item.publish_time[:10]}\n")
-            if item.snippet:
-                result_parts.append(f"   {item.snippet[:100]}\n")
-            result_parts.append("")
-
-        return "\n".join(result_parts).strip()
-
-    except Exception as e:
-        return f"搜索{category}数据时出错：{str(e)}"
-
-
-def _get_international_events_impl() -> str:
-    """获取今日关键国际事件"""
-    return _search_market_data_impl(
-        "美联储 欧央行 政策 中美关系 地缘政治 今日",
-        "今日关键国际事件"
-    )
-
-
-def _get_commodity_prices_impl() -> str:
-    """获取大宗商品价格"""
-    return _search_market_data_impl(
-        "原油价格 黄金价格 铜价格 天然气价格 农产品价格 今日",
-        "大宗商品价格走势"
-    )
-
-
-def _get_financial_dynamics_impl() -> str:
-    """获取金融动态"""
-    return _search_market_data_impl(
-        "美元指数 美债收益率 北向资金 南向资金 今日",
-        "全球金融动态"
-    )
-
-
-@tool
-def get_international_events(runtime: ToolRuntime = None) -> str:
-    """
-    获取今日关键国际事件
-
-    Returns:
-        美联储/欧央行政策、地缘政治、中美关系、全球经济数据等
-    """
-    return _get_international_events_impl()
-
-
-@tool
-def get_commodity_prices(runtime: ToolRuntime = None) -> str:
-    """
-    获取大宗商品价格走势
-
-    Returns:
-        原油、黄金、铜、天然气、农产品等大宗商品涨跌及核心逻辑
-    """
-    return _get_commodity_prices_impl()
-
-
-@tool
-def get_financial_dynamics(runtime: ToolRuntime = None) -> str:
-    """
-    获取全球金融动态
-
-    Returns:
-        美元指数、美债收益率、北向/南向资金、全球风险偏好变化
-    """
-    return _get_financial_dynamics_impl()
+        print(f"\n\n❌ 执行出错: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
