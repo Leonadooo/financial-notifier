@@ -94,3 +94,4 @@ orjson==3.11.7
 # 其他工具（coze-coding-dev-sdk 依赖）
 boto3==1.40.61
 sqlacodegen==4.0.2
+numpy==2.2.6
