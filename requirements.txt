@@ -2,8 +2,8 @@
 # 金融资讯推送系统 - 精简版依赖
 # ========================================
 # 用途：GitHub Actions 和生产环境
-# 依赖数量：35个核心包
-# 安装时间：1-2分钟（无缓存） / ~10秒（有缓存）
+# 依赖数量：确保 coze-coding-dev-sdk 正常运行
+# 安装时间：2-3分钟（无缓存） / ~15秒（有缓存）
 # ========================================
 
 # 核心框架
@@ -12,13 +12,15 @@ langchain-core==1.0.2
 langchain-openai==1.0.1
 langgraph==1.0.2
 langgraph-checkpoint==3.0.0
+langgraph-checkpoint-postgres==3.0.1
 langgraph-prebuilt==1.0.2
 langsmith==0.4.39
 
-# Coze SDK
+# Coze SDK 及其依赖
 coze-coding-dev-sdk==0.5.11
 coze-coding-utils==0.2.4
 coze-workload-identity==0.1.4
+cozeloop==0.1.25
 
 # LLM客户端
 openai==2.24.0
@@ -43,6 +45,8 @@ Markdown==3.10.2
 beautifulsoup4==4.14.3
 soupsieve==2.8.3
 feedparser==6.0.11
+cssutils==2.11.1
+lxml==6.0.2
 
 # 日期时间处理
 python-dateutil==2.9.0.post0
@@ -56,9 +60,36 @@ python-dotenv==1.2.1
 packaging==25.0
 tenacity==9.1.4
 tqdm==4.67.3
+click==8.3.1
+rich==14.2.0
+Unidecode==1.4.0
 
-# Supabase（如果使用数据库）
+# Supabase 和数据库
 supabase==2.27.3
+supabase-auth==2.27.3
+supabase-functions==2.27.3
+realtime==2.27.3
+postgrest==2.27.3
+storage3==2.27.3
+sqlalchemy==2.0.44
+alembic==1.16.5
+psycopg==3.3.0
+psycopg-pool==3.3.0
+
+# 文档生成（coze-coding-dev-sdk 依赖）
+python-docx==1.2.0
+python-pptx==1.0.2
+reportlab==4.4.10
+
+# 图像处理（coze-coding-dev-sdk 依赖）
+Pillow==10.3.0
+
+# Excel处理（python-pptx 依赖）
+XlsxWriter==3.2.9
 
 # JSON处理
 orjson==3.11.7
+
+# 其他工具（coze-coding-dev-sdk 依赖）
+boto3==1.40.61
+sqlacodegen==4.0.2
