@@ -1,262 +1,262 @@
-#!/usr/bin/env python3
 """
-金融资讯定时推送脚本
-每天自动获取金融资讯并通过配置的渠道推送
+金融资讯生成工具
+使用LLM生成国际金融形势、黄金、石油等大宗商品的最新资讯和分析
 """
-import sys
-import os
-import json
-from datetime import datetime
-import asyncio
-
-# 添加项目路径到Python路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain.tools import tool, ToolRuntime
+from coze_coding_dev_sdk import LLMClient
 from coze_coding_utils.runtime_ctx.context import new_context
-from coze_coding_utils.log.write_log import setup_logging
-from coze_coding_utils.log.config import LOG_DIR, LOG_LEVEL
-
-# 导入工具 - 使用内部实现函数
-from src.tools.financial_news_tool import (
-    _generate_financial_news_impl
-)
-from src.tools.notification_tool import (
-    _send_email_notification_impl
-)
-
-# 设置日志
-LOG_FILE = os.path.join(LOG_DIR, "daily_notification.log")
-setup_logging(
-    log_file=LOG_FILE,
-    max_bytes=100 * 1024 * 1024,
-    backup_count=5,
-    log_level=LOG_LEVEL,
-    use_json_format=True,
-    console_output=True
-)
+from langchain_core.messages import HumanMessage, SystemMessage
+from datetime import datetime
 
 
-def get_notification_config():
-    """获取推送配置"""
-    config_path = os.path.join(
-        os.getenv("COZE_WORKSPACE_PATH", "/workspace/projects"),
-        "config",
-        "notification_config.json"
-    )
+def _generate_financial_news_impl(query: str, max_items: int = 5) -> str:
+    """
+    生成金融相关资讯（使用 LLM）
 
-    if os.path.exists(config_path):
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+    Args:
+        query: 搜索关键词
+        max_items: 最多返回的新闻条数（默认5条）
 
-    # 默认配置
-    return {
-        "enabled_channels": ["console"],  # 默认只输出到控制台
-        "wechat": {"enabled": False},
-        "feishu": {"enabled": False},
-        "email": {
-            "enabled": False,
-            "recipients": []
-        },
-        "content_types": ["gold", "oil", "financial"]  # 默认获取所有内容
-    }
+    Returns:
+        生成的资讯摘要，包括标题、内容等关键信息
+    """
+    ctx = new_context(method="generate.news")
 
-
-def gather_financial_news(content_types):
-    """收集金融资讯（控制时长在5分钟内）"""
-    print("\n" + "=" * 60)
-    print(f"开始收集金融资讯 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("⏱️  目标：控制在5分钟内读完（约1500字）")
-    print("=" * 60 + "\n")
-
-    all_content = []
-
-    # 根据内容类型数量，动态调整每个主题的新闻条数
-    # 目标：3个主题各1条，总约600-800字（控制在5分钟内读完）
-    num_types = len(content_types)
-    if num_types == 1:
-        items_per_type = 2  # 单个主题时，2条新闻
-    else:
-        items_per_type = 1  # 多个主题时，各1条
-
-    if "gold" in content_types:
-        print(f"📊 正在获取黄金价格分析（今日新闻，最多{items_per_type}条）...")
-        try:
-            gold_content = _generate_financial_news_impl("黄金价格走势 影响因素", max_items=items_per_type)
-            all_content.append({
-                "title": "🥇 黄金价格走势分析",
-                "content": gold_content
-            })
-            print(f"✅ 黄金价格分析获取成功")
-        except Exception as e:
-            print(f"❌ 黄金价格分析获取失败: {e}")
-
-    if "oil" in content_types:
-        print(f"\n📊 正在获取原油价格分析（今日新闻，最多{items_per_type}条）...")
-        try:
-            oil_content = _generate_financial_news_impl("原油价格走势 国际石油市场 影响因素", max_items=items_per_type)
-            all_content.append({
-                "title": "🛢️ 原油价格走势分析",
-                "content": oil_content
-            })
-            print(f"✅ 原油价格分析获取成功")
-        except Exception as e:
-            print(f"❌ 原油价格分析获取失败: {e}")
-
-    if "financial" in content_types:
-        print(f"\n📊 正在获取国际金融形势（今日新闻，最多{items_per_type}条）...")
-        try:
-            financial_content = _generate_financial_news_impl("国际金融形势 全球经济", max_items=items_per_type)
-            all_content.append({
-                "title": "🌍 国际金融形势",
-                "content": financial_content
-            })
-            print(f"✅ 国际金融形势获取成功")
-        except Exception as e:
-            print(f"❌ 国际金融形势获取失败: {e}")
-
-    return all_content
-
-
-def format_notification(all_content):
-    # 修改标题格式
-    header = f"# 💰 每日金融资讯\n\n📅 日期：{datetime.now().strftime('%Y年%m月%d日')}\n"
-    
-    # 添加问候语
-    greeting = f"您好！以下是今日金融资讯：\n\n"
-    
-    body = []
-    for idx, item in enumerate(all_content, 1):
-        body.append(f"### {item['title']}\n")  # 改用三级标题
-        body.append(item['content'])
-        body.append("\n\n---\n\n")  # 添加分隔线
-
-    # 修改页脚
-    footer = f"\n\n*本邮件由金融资讯助手自动生成，时间：{datetime.now().strftime('%H:%M:%S')}*"
-
-    return header + greeting + "\n".join(body) + footer
-
-
-def send_notification(content, config):
-    """发送通知"""
-    enabled_channels = config.get("enabled_channels", ["console"])
-    success_count = 0
-    total_count = 0
-
-    # 控制台输出
-    if "console" in enabled_channels:
-        print("\n" + "=" * 80)
-        print("【控制台输出】")
-        print("=" * 80)
-        print(content)
-        print("=" * 80 + "\n")
-        success_count += 1
-        total_count += 1
-
-    # 企业微信推送（暂时禁用，需要修复工具函数）
-    # if "wechat" in enabled_channels and config.get("wechat", {}).get("enabled", False):
-    #     total_count += 1
-    #     try:
-    #         result = send_wechat_notification(content, message_type="markdown")
-    #         if "成功" in result:
-    #             print("✅ 企业微信推送成功")
-    #             success_count += 1
-    #         else:
-    #             print(f"❌ 企业微信推送失败: {result}")
-    #     except Exception as e:
-    #         print(f"❌ 企业微信推送异常: {e}")
-
-    # 飞书推送（暂时禁用，需要修复工具函数）
-    # if "feishu" in enabled_channels and config.get("feishu", {}).get("enabled", False):
-    #     total_count += 1
-    #     try:
-    #         result = send_feishu_notification(
-    #             content,
-    #             message_type="rich",
-    #             title=f"📈 金融资讯早报 - {datetime.now().strftime('%m/%d')}"
-    #         )
-    #         if "成功" in result:
-    #             print("✅ 飞书推送成功")
-    #             success_count += 1
-    #         else:
-    #             print(f"❌ 飞书推送失败: {result}")
-    #     except Exception as e:
-    #         print(f"❌ 飞书推送异常: {e}")
-
-    # 邮件推送
-    if "email" in enabled_channels and config.get("email", {}).get("enabled", False):
-        recipients = config.get("email", {}).get("recipients", [])
-        if recipients:
-            total_count += 1
-            try:
-                email_config = config.get("email", {})
-                result = _send_email_notification_impl(
-                    subject=f"📈 金融资讯早报 - {datetime.now().strftime('%Y-%m-%d')}",
-                    content=content,
-                    to_addrs=recipients,
-                    config_override=email_config
-                )
-                if "成功" in result:
-                    print("✅ 邮件推送成功")
-                    success_count += 1
-                else:
-                    print(f"❌ 邮件推送失败: {result}")
-            except Exception as e:
-                print(f"❌ 邮件推送异常: {e}")
-
-    return success_count, total_count
-
-
-def main():
-    """主函数"""
-    print("\n" + "🚀" * 40)
-    print("金融资讯定时推送服务启动")
-    print("🚀" * 40)
-
-    # 获取配置
-    config = get_notification_config()
-    content_types = config.get("content_types", ["gold", "oil", "financial"])
-
-    print(f"\n📋 配置信息:")
-    print(f"   - 启用渠道: {', '.join(config.get('enabled_channels', []))}")
-    print(f"   - 内容类型: {', '.join(content_types)}")
-
-    # 收集资讯
-    all_content = gather_financial_news(content_types)
-
-    if not all_content:
-        print("\n⚠️  未能获取到任何资讯，请检查网络连接")
-        return
-
-    # 格式化内容
-    formatted_content = format_notification(all_content)
-
-    # 发送通知
-    print("\n📤 开始推送消息...")
-    success_count, total_count = send_notification(formatted_content, config)
-
-    # 总结
-    print("\n" + "📊" * 40)
-    print("推送任务完成")
-    print("📊" * 40)
-    print(f"成功: {success_count}/{total_count}")
-    print(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
-    if success_count < total_count:
-        print("\n⚠️  部分推送渠道失败，请检查配置和凭证")
-        sys.exit(1)
-    else:
-        print("\n✅ 所有推送渠道成功！")
-
-
-if __name__ == "__main__":
     try:
-        main()
-    except KeyboardInterrupt:
-        print("\n\n⚠️  用户中断执行")
-        sys.exit(0)
+        client = LLMClient(ctx=ctx)
+        
+        current_date = datetime.now().strftime("%Y年%m月%d日")
+        
+        prompt = f"""请生成关于"{query}"的最新资讯和分析。
+
+当前日期：{current_date}
+
+要求：
+1. 提供{max_items}条相关资讯
+2. 每条资讯包含：标题、时间、事件描述、影响分析
+3. 信息要准确、专业、具有参考价值
+4. 关注最新的市场动态和政策变化
+5. 格式清晰易读，使用列表形式
+
+请以以下格式输出：
+【AI生成资讯】
+📊 生成时间：{current_date}
+
+1. [资讯标题]
+   📅 时间：[具体时间或近期]
+   📝 内容：[事件描述]
+   💡 影响：[影响分析]
+
+2. [资讯标题]
+   ...
+
+【综合分析】
+[对整体形势的总结分析]"""
+
+        messages = [
+            SystemMessage(content="你是一个专业的金融分析师，擅长分析国际金融市场动态、大宗商品价格走势和宏观经济政策。你的回答应该专业、准确、有深度。"),
+            HumanMessage(content=prompt)
+        ]
+        
+        response = client.invoke(messages=messages, temperature=0.7)
+        
+        content = response.content
+        
+        # 如果是列表格式，转换为字符串
+        if isinstance(content, list):
+            if content and isinstance(content[0], str):
+                content = " ".join(content)
+            else:
+                text_parts = []
+                for item in content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        text_parts.append(item.get("text", ""))
+                content = " ".join(text_parts)
+        
+        return content.strip()
+        
     except Exception as e:
-        print(f"\n\n❌ 执行出错: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+        return f"生成金融资讯时出错：{str(e)}"
+
+
+@tool
+def search_financial_news(query: str, runtime: ToolRuntime = None) -> str:
+    """
+    生成金融相关资讯
+
+    Args:
+        query: 搜索关键词，如"国际金融形势"、"黄金价格走势"、"原油市场"等
+
+    Returns:
+        生成的资讯摘要，包括标题、内容等关键信息
+    """
+    return _generate_financial_news_impl(query)
+
+
+@tool
+def get_gold_price_analysis(runtime: ToolRuntime = None) -> str:
+    """
+    获取黄金价格走势及影响因素分析
+
+    Returns:
+        黄金价格最新资讯、走势分析和影响因素
+    """
+    return _generate_financial_news_impl("黄金价格走势 影响因素 市场动态")
+
+
+@tool
+def get_oil_price_analysis(runtime: ToolRuntime = None) -> str:
+    """
+    获取原油价格走势及影响因素分析
+
+    Returns:
+        原油价格最新资讯、走势分析和影响因素
+    """
+    return _generate_financial_news_impl("原油价格走势 国际石油市场 影响因素")
+
+
+@tool
+def get_international_financial_situation(runtime: ToolRuntime = None) -> str:
+    """
+    获取国际金融形势最新动态
+
+    Returns:
+        国际金融形势的综合资讯和分析
+    """
+    return _generate_financial_news_impl("国际金融形势 全球经济 最新动态")
+
+
+# ===== 新增：ETF分析专用生成函数 =====
+
+def _generate_market_data_impl(query: str, category: str) -> str:
+    """
+    生成市场数据（内部实现函数）
+
+    Args:
+        query: 生成关键词
+        category: 数据类别（如"国际事件"、"大宗商品"等）
+
+    Returns:
+        生成的市场数据摘要
+    """
+    ctx = new_context(method="generate.market_data")
+
+    try:
+        client = LLMClient(ctx=ctx)
+        
+        current_date = datetime.now().strftime("%Y年%m月%d日")
+        
+        prompt = f"""请生成关于"{category}"的最新市场数据和分析。
+
+查询内容：{query}
+当前日期：{current_date}
+
+要求：
+1. 提供最新的市场数据
+2. 分析当前市场趋势
+3. 提供投资建议或参考
+4. 信息要准确、专业
+5. 格式清晰易读
+
+请以结构化的方式输出。"""
+
+        messages = [
+            SystemMessage(content="你是一个专业的市场分析师，擅长分析各类金融市场的动态和趋势。"),
+            HumanMessage(content=prompt)
+        ]
+        
+        response = client.invoke(messages=messages, temperature=0.7)
+        
+        content = response.content
+        
+        # 如果是列表格式，转换为字符串
+        if isinstance(content, list):
+            if content and isinstance(content[0], str):
+                content = " ".join(content)
+            else:
+                text_parts = []
+                for item in content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        text_parts.append(item.get("text", ""))
+                content = " ".join(text_parts)
+        
+        return content.strip()
+        
+    except Exception as e:
+        return f"生成市场数据时出错：{str(e)}"
+
+
+@tool
+def get_international_events(runtime: ToolRuntime = None) -> str:
+    """
+    获取国际重大事件对市场的影响分析
+
+    Returns:
+        国际重大事件的最新动态及市场影响分析
+    """
+    return _generate_market_data_impl("国际重大事件", "国际事件")
+
+
+@tool
+def get_commodity_analysis(runtime: ToolRuntime = None) -> str:
+    """
+    获取大宗商品市场分析
+
+    Returns:
+        大宗商品（黄金、石油、白银等）的市场分析
+    """
+    return _generate_market_data_impl("大宗商品市场分析", "大宗商品")
+
+
+@tool
+def get_currency_market(runtime: ToolRuntime = None) -> str:
+    """
+    获取外汇市场动态
+
+    Returns:
+        外汇市场的最新动态和分析
+    """
+    return _generate_market_data_impl("外汇市场动态", "外汇市场")
+
+
+@tool
+def get_stock_market_overview(runtime: ToolRuntime = None) -> str:
+    """
+    获取股市概况
+
+    Returns:
+        全球股市的最新概况和分析
+    """
+    return _generate_market_data_impl("全球股市概况", "股市")
+
+
+# ===== ETF分析专用函数 =====
+
+def _get_international_events_impl() -> str:
+    """
+    获取国际事件（ETF分析专用）
+
+    Returns:
+        国际重大事件的最新动态及市场影响分析
+    """
+    return _generate_market_data_impl("国际重大事件", "国际事件")
+
+
+def _get_commodity_prices_impl() -> str:
+    """
+    获取大宗商品价格（ETF分析专用）
+
+    Returns:
+        大宗商品（黄金、石油、白银等）的价格和市场分析
+    """
+    return _generate_market_data_impl("大宗商品价格走势", "大宗商品")
+
+
+def _get_financial_dynamics_impl() -> str:
+    """
+    获取金融动态（ETF分析专用）
+
+    Returns:
+        全球金融市场的最新动态和分析
+    """
+    return _generate_market_data_impl("全球金融动态", "金融动态")
