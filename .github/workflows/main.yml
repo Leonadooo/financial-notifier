@@ -1,44 +1,74 @@
 name: 金融资讯定时推送
 
+# 触发条件
 on:
-  # 每天9点（北京时间）运行
+  # 定时触发：每天北京时间早上9点
+  # GitHub Actions使用UTC时间，北京时间=UTC+8
+  # 北京时间9点 = UTC时间1点
   schedule:
-    - cron: '0 9 * * *'
-  # 也支持手动触发
+    - cron: '0 1 * * *'
+
+  # 手动触发（用于测试）
   workflow_dispatch:
 
 jobs:
+  # 运行每日推送任务
   run-daily-notification:
     runs-on: ubuntu-latest
 
     steps:
+      # 步骤1：检出代码
       - name: 检出代码
         uses: actions/checkout@v4
 
+      # 步骤2：设置Python环境
       - name: 设置Python环境
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: 安装依赖
+      # 步骤3：安装系统依赖
+      - name: 安装系统依赖
         run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libglib2.0-dev \
+            libdbus-1-dev \
+            build-essential
+
+      # 步骤4：缓存pip依赖
+      - name: 缓存pip依赖
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # 步骤5：安装Python依赖
+      - name: 安装Python依赖
+        run: |
+          pip install --upgrade pip
           pip install -r requirements.txt
 
+      # 步骤6：创建日志目录
       - name: 创建日志目录
         run: |
           mkdir -p /tmp/app/work/logs/bypass
           mkdir -p logs
 
+      # 步骤7：运行推送脚本
       - name: 运行推送脚本
         env:
           COZE_WORKSPACE_PATH: ${{ github.workspace }}
           COZE_WORKLOAD_IDENTITY_API_KEY: ${{ secrets.COZE_API_KEY }}
-          COZE_BASE_URL: ${{ secrets.COZE_BASE_URL }}  
-          COZE_INTEGRATION_BASE_URL: ${{ secrets.COZE_BASE_URL }}   
+          COZE_BASE_URL: ${{ secrets.COZE_BASE_URL }}
+          COZE_INTEGRATION_BASE_URL: ${{ secrets.COZE_BASE_URL }}
           COZE_INTEGRATION_MODEL_BASE_URL: ${{ secrets.COZE_BASE_URL }}
         run: |
           python scripts/daily_notification.py
 
+      # 步骤8：上传日志（无论成功或失败）
       - name: 上传日志
         if: always()
         uses: actions/upload-artifact@v4
