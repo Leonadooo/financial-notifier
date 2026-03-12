@@ -2,6 +2,7 @@
 金融资讯生成工具
 使用LLM生成国际金融形势、黄金、石油等大宗商品的最新资讯和分析
 """
+import os
 from langchain.tools import tool, ToolRuntime
 from coze_coding_dev_sdk import LLMClient
 from coze_coding_utils.runtime_ctx.context import new_context
@@ -23,8 +24,22 @@ def _generate_financial_news_impl(query: str, max_items: int = 5) -> str:
     ctx = new_context(method="generate.news")
 
     try:
-        client = LLMClient(ctx=ctx)
-        
+        # 获取 API Key 和 Base URL
+        api_key = os.getenv("COZE_WORKLOAD_IDENTITY_API_KEY") or os.getenv("COZE_API_KEY")
+        base_url = os.getenv("COZE_INTEGRATION_MODEL_BASE_URL") or os.getenv("COZE_BASE_URL")
+
+        # 如果都没有，使用默认值
+        if not base_url:
+            base_url = "https://api.coze.cn/v1/"
+
+        # 初始化 LLMClient，传递配置
+        from coze_coding_dev_sdk import Config
+        config = Config(
+            api_key=api_key,
+            base_url=base_url
+        )
+        client = LLMClient(ctx=ctx, config=config)
+
         current_date = datetime.now().strftime("%Y年%m月%d日")
         
         prompt = f"""请生成关于"{query}"的最新资讯和分析。
@@ -142,7 +157,21 @@ def _generate_market_data_impl(query: str, category: str) -> str:
     ctx = new_context(method="generate.market_data")
 
     try:
-        client = LLMClient(ctx=ctx)
+        # 获取 API Key 和 Base URL
+        api_key = os.getenv("COZE_WORKLOAD_IDENTITY_API_KEY") or os.getenv("COZE_API_KEY")
+        base_url = os.getenv("COZE_INTEGRATION_MODEL_BASE_URL") or os.getenv("COZE_BASE_URL")
+
+        # 如果都没有，使用默认值
+        if not base_url:
+            base_url = "https://api.coze.cn/v1/"
+
+        # 初始化 LLMClient，传递配置
+        from coze_coding_dev_sdk import Config
+        config = Config(
+            api_key=api_key,
+            base_url=base_url
+        )
+        client = LLMClient(ctx=ctx, config=config)
         
         current_date = datetime.now().strftime("%Y年%m月%d日")
         
