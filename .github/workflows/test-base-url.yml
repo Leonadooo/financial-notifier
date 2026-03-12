@@ -1,0 +1,65 @@
+name: Base URL 测试
+
+# 触发条件
+on:
+  # 手动触发（用于测试）
+  workflow_dispatch:
+
+jobs:
+  # 测试不同的 Base URL 配置
+  test-different-urls:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        url:
+          - "https://api.coze.cn/open_api/v1/chat"
+          - "https://api.coze.cn/v1"
+          - "https://integration.coze.cn"
+          - "https://integration.coze.cn/api/v3"
+
+    steps:
+      # 步骤1：检出代码
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # 步骤2：设置Python环境
+      - name: 设置Python环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # 步骤3：安装系统依赖
+      - name: 安装系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libglib2.0-dev \
+            libdbus-1-dev \
+            build-essential
+
+      # 步骤4：安装Python依赖
+      - name: 安装Python依赖
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 步骤5：创建日志目录
+      - name: 创建日志目录
+        run: |
+          mkdir -p /tmp/app/work/logs/bypass
+          mkdir -p logs
+
+      # 步骤6：测试指定 URL
+      - name: "测试 Base URL: ${{ matrix.url }}"
+        env:
+          COZE_WORKSPACE_PATH: ${{ github.workspace }}
+          COZE_WORKLOAD_IDENTITY_API_KEY: ${{ secrets.COZE_API_KEY }}
+          COZE_BASE_URL: ${{ matrix.url }}
+          COZE_INTEGRATION_BASE_URL: ${{ matrix.url }}
+          COZE_INTEGRATION_MODEL_BASE_URL: ${{ matrix.url }}
+        run: |
+          echo "======================================"
+          echo "测试 Base URL: ${{ matrix.url }}"
+          echo "======================================"
+          python scripts/test_api_connection.py
