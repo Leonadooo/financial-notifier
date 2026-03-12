@@ -1,19 +1,19 @@
-name: 金融资讯定时推送
+name: ETF投资分析推送
 
 # 触发条件
 on:
-  # 定时触发：每天北京时间早上9点
+  # 定时触发：每天北京时间早上8点半
   # GitHub Actions使用UTC时间，北京时间=UTC+8
-  # 北京时间9点 = UTC时间1点
+  # 北京时间8:30 = UTC时间0:30
   schedule:
-    - cron: '0 1 * * *'
+    - cron: '30 0 * * *'
 
   # 手动触发（用于测试）
   workflow_dispatch:
 
 jobs:
-  # 运行每日推送任务
-  run-daily-notification:
+  # 运行ETF分析任务
+  run-etf-analysis:
     runs-on: ubuntu-latest
 
     steps:
@@ -51,28 +51,36 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      # 步骤6：创建日志目录
-      - name: 创建日志目录
+      # 步骤6：创建必要的目录
+      - name: 创建目录
         run: |
           mkdir -p /tmp/app/work/logs/bypass
           mkdir -p logs
+          mkdir -p assets/predictions
 
-      # 步骤7：运行推送脚本
-      - name: 运行推送脚本
+      # 步骤7：运行ETF分析脚本
+      - name: 运行ETF分析脚本
         env:
           COZE_WORKSPACE_PATH: ${{ github.workspace }}
           COZE_WORKLOAD_IDENTITY_API_KEY: ${{ secrets.COZE_API_KEY }}
-          COZE_BASE_URL: ${{ secrets.COZE_BASE_URL }}
-          COZE_INTEGRATION_BASE_URL: ${{ secrets.COZE_BASE_URL }}
-          COZE_INTEGRATION_MODEL_BASE_URL: ${{ secrets.COZE_BASE_URL }}
+          COZE_INTEGRATION_MODEL_BASE_URL: ${{ secrets.COZE_INTEGRATION_MODEL_BASE_URL }}
         run: |
-          python scripts/daily_notification.py
+          python scripts/etf_analysis.py
 
       # 步骤8：上传日志（无论成功或失败）
       - name: 上传日志
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: notification-log-${{ github.run_number }}
-          path: logs/daily_notification.log
+          name: etf-analysis-log-${{ github.run_number }}
+          path: logs/etf_analysis.log
           retention-days: 7
+
+      # 步骤9：上传预测文件（无论成功或失败）
+      - name: 上传预测文件
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: etf-prediction-${{ github.run_number }}
+          path: assets/predictions/
+          retention-days: 30
