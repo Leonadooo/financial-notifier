@@ -52,7 +52,7 @@ jobs:
           mkdir -p logs
 
       # 步骤7：运行 API 连接测试
-        name: 运行 API 连接测试
+      - name: 运行 API 连接测试
         env:
           COZE_WORKSPACE_PATH: ${{ github.workspace }}
           COZE_WORKLOAD_IDENTITY_API_KEY: ${{ secrets.COZE_API_KEY }}
